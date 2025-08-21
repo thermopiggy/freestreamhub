@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="bg">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Хъб за безплатни стрийм платформи</title>
+  <meta name="description" content="Агрегатор на легални безплатни стрийм платформи – търсене, категории и личен Watchlist. Всичко локално, без сървър." />
+  <style>
+    :root {
+      --bg:#0b0d12; --fg:#e7e9ee; --muted:#aab0bc; --acc:#7ad3ff; --card:#12141b; --line:#1d2230;
+      --good:#79e38a; --warn:#ffd36e; --bad:#ff8f8f;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu; background:var(--bg); color:var(--fg);}    
+    a{color:var(--acc);text-decoration:none}
+    .wrap{max-width:1100px;margin:auto;padding:18px}
+    header{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:space-between;margin-bottom:14px}
+    h1{font-size:clamp(20px,3vw,28px);margin:0;font-weight:700}
+    .toolbar{display:flex;gap:8px;flex-wrap:wrap}
+    .search{display:flex;gap:8px;flex:1;min-width:260px}
+    input[type="search"], input[type="text"], textarea{background:var(--card);border:1px solid var(--line);color:var(--fg);border-radius:10px;padding:10px 12px}
+    input[type="search"]{flex:1}
+    .btn{border:1px solid var(--line);background:#151826;color:var(--fg);padding:9px 12px;border-radius:10px;cursor:pointer}
+    .btn:hover{border-color:#2a3146}
+    .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
+    .card h3{margin:0;font-size:18px}
+    .badges{display:flex;flex-wrap:wrap;gap:6px}
+    .badge{font-size:12px;border:1px solid var(--line);padding:2px 8px;border-radius:999px;color:var(--muted)}
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .actions .btn{padding:7px 10px;font-size:14px}
+    .subtle{color:var(--muted);font-size:13px}
+    .row{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
+    @media (max-width:900px){.row{grid-template-columns:1fr}}
+    .panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+    .panel h2{margin:0 0 8px 0;font-size:18px}
+    .list{display:flex;flex-direction:column;gap:8px}
+    .wl-item{display:flex;gap:8px;align-items:center;border:1px dashed var(--line);padding:8px;border-radius:10px}
+    .wl-item a{flex:1}
+    .pill-row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
+    .pill{border:1px solid var(--line);background:#121624;color:var(--fg);padding:6px 10px;border-radius:999px;cursor:pointer;font-size:14px}
+    .pill[aria-pressed="true"]{background:#1a2033;border-color:#2d3652}
+    .json-editor{width:100%;min-height:140px;font-family:ui-monospace,Menlo,Consolas,monospace}
+    footer{margin:20px 0 10px;color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Хъб за безплатни стрийм платформи</h1>
+      <div class="toolbar">
+        <button class="btn" id="openAll">Отвори всички</button>
+        <button class="btn" id="exportBtn" title="Експорт на watchlist и услуги">Експорт</button>
+        <button class="btn" id="importBtn" title="Импорт на данни">Импорт</button>
+        <button class="btn" id="manageBtn" title="Редакция на списъка с платформи">Управление</button>
+      </div>
+    </header>
+
+    <div class="search">
+      <input id="query" type="search" placeholder="Търси заглавие – ще отвори Google ‘site:домен' в нов таб за всяка платформа" />
+      <button class="btn" id="searchAll">Търси във всички</button>
+    </div>
+
+    <div class="pill-row" id="catRow"></div>
+
+    <div class="row" style="margin-top:10px">
+      <section class="panel">
+        <h2>Платформи</h2>
+        <p class="subtle" style="margin-top:-2px">Всички линкове са директни към официалните сайтове. Нищо не минава през сървър – чист HTML/JS. Част от услугите може да изискват акаунт или да имат регионални ограничения.</p>
+        <div class="grid" id="cards"></div>
+      </section>
+
+      <aside class="panel">
+        <h2>Личен Watchlist</h2>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <input id="wlTitle" type="text" placeholder="Заглавие" />
+          <input id="wlUrl" type="text" placeholder="Линк (по желание)" />
+          <button class="btn" id="wlAdd">Добави</button>
+        </div>
+        <div class="list" id="wlList"></div>
+      </aside>
+    </div>
+
+    <section class="panel" id="manage" style="display:none;margin-top:14px">
+      <h2>Редакция на списъка с платформи</h2>
+      <p class="subtle">Можеш да редактираш JSON-а отдолу. Полетата са: <code>name</code>, <code>domain</code>, <code>categories</code>, <code>browse</code>.</p>
+      <textarea class="json-editor" id="jsonEditor"></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn" id="saveJson">Запази</button>
+        <button class="btn" id="cancelJson">Отказ</button>
+      </div>
+    </section>
+
+    <footer>
+      Направено за 1 файл. Данните се запазват локално (localStorage).
+    </footer>
+  </div>
+
+<script>
+const DEFAULT_PLATFORMS = [
+  { name:"Tubi", domain:"tubitv.com", categories:["movies","series","documentaries","anime"], browse:"https://tubitv.com/" },
+  { name:"Pluto TV (On Demand)", domain:"pluto.tv", categories:["movies","series","documentaries"], browse:"https://pluto.tv/on-demand" },
+  { name:"Crackle", domain:"crackle.com", categories:["movies","series"], browse:"https://www.crackle.com/" },
+  { name:"The Roku Channel", domain:"therokuchannel.roku.com", categories:["movies","series","documentaries"], browse:"https://therokuchannel.roku.com/" },
+  { name:"Plex – Free Movies & TV", domain:"plex.tv", categories:["movies","series","documentaries"], browse:"https://watch.plex.tv/" },
+  { name:"Amazon Freevee", domain:"freevee.com", categories:["movies","series"], browse:"https://www.amazon.com/freevee" },
+  { name:"Vudu (Free)", domain:"vudu.com", categories:["movies","series"], browse:"https://www.vudu.com/" },
+  { name:"FilmRise", domain:"filmrise.com", categories:["movies","series","documentaries"], browse:"https://filmrise.com/" },
+  { name:"Popcornflix", domain:"popcornflix.com", categories:["movies","series"], browse:"https://www.popcornflix.com/" },
+  { name:"Kanopy (библиотечен достъп)", domain:"kanopy.com", categories:["movies","documentaries"], browse:"https://www.kanopy.com/" },
+  { name:"Crunchyroll (free tier)", domain:"crunchyroll.com", categories:["anime","series"], browse:"https://www.crunchyroll.com/" }
+];
+
+const STORAGE_KEYS = {
+  platforms: 'free-streaming.platforms.v1',
+  watchlist: 'free-streaming.watchlist.v1'
+};
+
+const state = {
+  platforms: loadPlatforms(),
+  category: 'all',
+  watchlist: JSON.parse(localStorage.getItem(STORAGE_KEYS.watchlist) || '[]')
+};
+
+function loadPlatforms(){
+  const raw = localStorage.getItem(STORAGE_KEYS.platforms);
+  if(!raw){ return DEFAULT_PLATFORMS }
+  try { return JSON.parse(raw) } catch(e){ console.warn('Bad JSON, fallback to defaults'); return DEFAULT_PLATFORMS }
+}
+
+function savePlatforms(){
+  localStorage.setItem(STORAGE_KEYS.platforms, JSON.stringify(state.platforms));
+}
+
+function renderCategories(){
+  const cats = new Set(['all']);
+  state.platforms.forEach(p => (p.categories||[]).forEach(c => cats.add(c)));
+  const row = document.getElementById('catRow');
+  row.innerHTML = '';
+  cats.forEach(c => {
+    const btn = document.createElement('button');
+    btn.className = 'pill';
+    btn.textContent = c === 'all' ? 'Всички' : c;
+    btn.setAttribute('aria-pressed', c===state.category);
+    btn.onclick = () => { state.category = c; renderCards(); renderCategories(); };
+    row.appendChild(btn);
+  });
+}
+
+function renderCards(){
+  const box = document.getElementById('cards');
+  box.innerHTML = '';
+  const list = state.platforms.filter(p => state.category==='all' || (p.categories||[]).includes(state.category));
+  list.forEach(p => {
+    const el = document.createElement('article');
+    el.className = 'card';
+    el.innerHTML = `
+      <h3>${p.name}</h3>
+      <div class="badges">${(p.categories||[]).map(c=>`<span class="badge">${c}</span>`).join('')}</div>
+      <div class="subtle">Домен: ${p.domain}</div>
+      <div class="actions">
+        <a class="btn" href="${p.browse}" target="_blank" rel="noopener">Отвори</a>
+        <button class="btn" data-search>Търси…</button>
+        <button class="btn" data-google>Google site:</button>
+      </div>
+    `;
+    el.querySelector('[data-search]').onclick = () => searchPlatform(p, document.getElementById('query').value.trim());
+    el.querySelector('[data-google]').onclick = () => googlePlatform(p, document.getElementById('query').value.trim());
+    box.appendChild(el);
+  });
+}
+
+// Универсално търсене: използваме Google "site:domain" за стабилност.
+function googlePlatform(p, q){
+  if(!q){ alert('Въведи заглавие в полето за търсене.'); return }
+  const url = `https://www.google.com/search?q=${encodeURIComponent(`site:${p.domain} ${q}`)}`;
+  window.open(url,'_blank','noopener');
+}
+
+// Опит за нативно търсене, при неизвестен шаблон – fallback към Google
+const NATIVE_SEARCH = {
+  'tubitv.com': q => `https://tubitv.com/search/${encodeURIComponent(q)}`,
+  'pluto.tv': q => `https://pluto.tv/search?query=${encodeURIComponent(q)}`,
+  'crackle.com': q => `https://www.crackle.com/search/${encodeURIComponent(q)}`,
+  'therokuchannel.roku.com': q => `https://therokuchannel.roku.com/search?q=${encodeURIComponent(q)}`,
+  'plex.tv': q => `https://watch.plex.tv/search?q=${encodeURIComponent(q)}`,
+  'freevee.com': q => `https://www.amazon.com/s?k=${encodeURIComponent(q)}&i=instant-video`,
+  'vudu.com': q => `https://www.vudu.com/content/movies/search?q=${encodeURIComponent(q)}`,
+  'filmrise.com': q => `https://filmrise.com/search/?q=${encodeURIComponent(q)}`,
+  'popcornflix.com': q => `https://www.popcornflix.com/search/${encodeURIComponent(q)}`,
+  'kanopy.com': q => `https://www.kanopy.com/en/search/?keyword=${encodeURIComponent(q)}`,
+  'crunchyroll.com': q => `https://www.crunchyroll.com/search?q=${encodeURIComponent(q)}`
+};
+
+function searchPlatform(p, q){
+  if(!q){ alert('Въведи заглавие в полето за търсене.'); return }
+  const fn = NATIVE_SEARCH[p.domain];
+  if(fn){ window.open(fn(q),'_blank','noopener'); }
+  else { googlePlatform(p,q); }
+}
+
+// Watchlist
+function renderWatchlist(){
+  const list = document.getElementById('wlList');
+  list.innerHTML = '';
+  if(!state.watchlist.length){ list.innerHTML = '<div class="subtle">Празно. Добави заглавие и (по желание) линк.</div>'; return }
+  state.watchlist.forEach((item,i)=>{
+    const row = document.createElement('div');
+    row.className = 'wl-item';
+    const a = document.createElement('a');
+    a.textContent = item.title;
+    a.href = item.url || '#';
+    a.target = item.url ? '_blank' : '';
+    a.rel = 'noopener';
+    const del = document.createElement('button');
+    del.className = 'btn';
+    del.textContent = '✕';
+    del.title = 'Премахни';
+    del.onclick = ()=>{ state.watchlist.splice(i,1); persistWL(); renderWatchlist(); };
+    row.appendChild(a);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+function persistWL(){ localStorage.setItem(STORAGE_KEYS.watchlist, JSON.stringify(state.watchlist)); }
+
+document.getElementById('wlAdd').onclick = () => {
+  const title = document.getElementById('wlTitle').value.trim();
+  const url = document.getElementById('wlUrl').value.trim();
+  if(!title){ alert('Въведи заглавие.'); return }
+  state.watchlist.unshift({title,url});
+  document.getElementById('wlTitle').value = '';
+  document.getElementById('wlUrl').value = '';
+  persistWL(); renderWatchlist();
+};
+
+// Search all
+function searchAll(engine){
+  const q = document.getElementById('query').value.trim();
+  if(!q){ alert('Въведи заглавие.'); return }
+  const filtered = state.platforms.filter(p => state.category==='all' || (p.categories||[]).includes(state.category));
+  filtered.forEach(p => engine==='native' ? searchPlatform(p,q) : googlePlatform(p,q));
+}
+
+document.getElementById('searchAll').onclick = ()=> searchAll('google');
+document.getElementById('openAll').onclick = ()=> state.platforms.forEach(p=> window.open(p.browse,'_blank','noopener'));
+
+// Export / Import (JSON)
+document.getElementById('exportBtn').onclick = () => {
+  const payload = { platforms: state.platforms, watchlist: state.watchlist };
+  const data = 'data:application/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(payload,null,2));
+  const a = document.createElement('a');
+  a.href = data; a.download = 'streaming-hub-data.json'; a.click();
+};
+
+document.getElementById('importBtn').onclick = async () => {
+  const input = document.createElement('input');
+  input.type='file'; input.accept='.json,application/json';
+  input.onchange = async () => {
+    const file = input.files[0]; if(!file) return;
+    const text = await file.text();
+    try{
+      const obj = JSON.parse(text);
+      if(obj.platforms){ state.platforms = obj.platforms; savePlatforms(); renderCategories(); renderCards(); }
+      if(obj.watchlist){ state.watchlist = obj.watchlist; persistWL(); renderWatchlist(); }
+    }catch(e){ alert('Невалиден JSON'); }
+  };
+  input.click();
+};
+
+// Manage (edit providers)
+const manage = document.getElementById('manage');
+document.getElementById('manageBtn').onclick = ()=>{
+  manage.style.display = manage.style.display==='none' ? 'block' : 'none';
+  document.getElementById('jsonEditor').value = JSON.stringify(state.platforms,null,2);
+};
+document.getElementById('saveJson').onclick = ()=>{
+  try{
+    const arr = JSON.parse(document.getElementById('jsonEditor').value);
+    if(!Array.isArray(arr)) throw new Error('Очаква се масив');
+    state.platforms = arr; savePlatforms(); renderCategories(); renderCards(); manage.style.display='none';
+  }catch(e){ alert('Грешка: ' + e.message); }
+};
+document.getElementById('cancelJson').onclick = ()=>{ manage.style.display='none' };
+
+// Init
+renderCategories();
+renderCards();
+renderWatchlist();
+</script>
+</body>
+</html>
